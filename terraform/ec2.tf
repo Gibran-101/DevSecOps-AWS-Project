@@ -5,6 +5,23 @@ resource "aws_key_pair" "deployer" {
 
 resource "aws_default_vpc" "default" {}
 
+resource "aws_internet_gateway" "default" {
+  vpc_id = aws_default_vpc.default.id
+}
+
+resource "aws_route_table" "default" {
+  vpc_id = aws_default_vpc.default.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.default.id
+  }
+
+  tags = {
+    Name = "default-route-table"
+  }
+}
+
 data "aws_subnets" "default_subnets" {
   filter {
     name   = "vpc-id"
@@ -18,6 +35,11 @@ data "aws_subnets" "default_subnets" {
 
 data "aws_subnet" "selected_subnet" {
   id = tolist(data.aws_subnets.default_subnets.ids)[0]
+}
+
+resource "aws_route_table_association" "default" {
+  subnet_id      = data.aws_subnet.selected_subnet.id
+  route_table_id = aws_route_table.default.id
 }
 
 resource "aws_security_group" "allow_user_to_connect" {
@@ -66,7 +88,7 @@ resource "aws_instance" "testinstance" {
   ami                         = var.ami_id
   instance_type               = var.instance_type
   key_name                    = aws_key_pair.deployer.key_name
-  security_groups             = [aws_security_group.allow_user_to_connect.id]  # ✅ Fixed here
+  vpc_security_group_ids      = [aws_security_group.allow_user_to_connect.id]
   associate_public_ip_address = true
   subnet_id                   = data.aws_subnet.selected_subnet.id
 
