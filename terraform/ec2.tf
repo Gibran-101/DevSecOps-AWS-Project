@@ -1,16 +1,30 @@
 resource "aws_key_pair" "deployer" {
   key_name   = "terra-automate-key"
-  public_key = file("/Users/shubham/Documents/work/TrainWithShubham/terra-practice/terra-key.pub")
+  public_key = file("C:\\Users\\Fahad\\Desktop\\DevOps-MP\\terraform\\terraform-key.pub")
 }
 
-resource "aws_default_vpc" "default" {
+resource "aws_default_vpc" "default" {}
 
+data "aws_subnets" "default_subnets" {
+  filter {
+    name   = "vpc-id"
+    values = [aws_default_vpc.default.id]
+  }
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-2a"]
+  }
+}
+
+data "aws_subnet" "selected_subnet" {
+  id = tolist(data.aws_subnets.default_subnets.ids)[0]
 }
 
 resource "aws_security_group" "allow_user_to_connect" {
   name        = "allow TLS"
   description = "Allow user to connect"
   vpc_id      = aws_default_vpc.default.id
+
   ingress {
     description = "port 22 allow"
     from_port   = 22
@@ -20,7 +34,7 @@ resource "aws_security_group" "allow_user_to_connect" {
   }
 
   egress {
-    description = " allow all outgoing traffic "
+    description = "allow all outgoing traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -49,15 +63,19 @@ resource "aws_security_group" "allow_user_to_connect" {
 }
 
 resource "aws_instance" "testinstance" {
-  ami             = var.ami_id
-  instance_type   = var.instance_type
-  key_name        = aws_key_pair.deployer.key_name
-  security_groups = [aws_security_group.allow_user_to_connect.name]
+  ami                         = var.ami_id
+  instance_type               = var.instance_type
+  key_name                    = aws_key_pair.deployer.key_name
+  security_groups             = [aws_security_group.allow_user_to_connect.id]  # ✅ Fixed here
+  associate_public_ip_address = true
+  subnet_id                   = data.aws_subnet.selected_subnet.id
+
   tags = {
     Name = "Automate"
   }
+
   root_block_device {
-    volume_size = 30 
+    volume_size = 30
     volume_type = "gp3"
   }
 }
