@@ -64,6 +64,8 @@ pipeline {
         stage("SonarQube: Code Quality Gates"){
             steps{
                 script{
+                    echo "Running SonarQube Analysis..."
+                    sh "sonar-scanner -X"
                     sonarqube_code_quality()
                 }
             }
