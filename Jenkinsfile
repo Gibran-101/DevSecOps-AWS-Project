@@ -1,6 +1,6 @@
 @Library('Shared') _
 pipeline {
-    agent {label 'Node'}
+    agent any
     
     environment{
         SONAR_HOME = tool "Sonar"
@@ -56,7 +56,9 @@ pipeline {
         stage("SonarQube: Code Analysis"){
             steps{
                 script{
-                    sonarqube_analysis("Sonar","wanderlust","wanderlust")
+                    withCredentials([string(credentialsId: 'Sonar', variable: 'SONAR_TOKEN')]) {
+                        sonarqube_analysis("Sonar","wanderlust","wanderlust")
+                    }
                 }
             }
         }
@@ -65,7 +67,9 @@ pipeline {
             steps{
                 script{
                     echo "Running SonarQube Analysis..."
-                    sh "sonar-scanner -X"
+                    withCredentials([string(credentialsId: 'Sonar', variable: 'SONAR_TOKEN')]) {
+                        sh "/opt/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=wanderlust -Dsonar.sources=. -Dsonar.host.url=http://54.152.241.32:9000 -Dsonar.login=${SONAR_TOKEN}"
+                    }
                     sonarqube_code_quality()
                 }
             }
@@ -99,11 +103,11 @@ pipeline {
             steps{
                 script{
                         dir('backend'){
-                            docker_build("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","trainwithshubham")
+                            docker_build("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","gibranf")
                         }
                     
                         dir('frontend'){
-                            docker_build("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","trainwithshubham")
+                            docker_build("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","gibranf")
                         }
                 }
             }
@@ -112,8 +116,8 @@ pipeline {
         stage("Docker: Push to DockerHub"){
             steps{
                 script{
-                    docker_push("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","trainwithshubham") 
-                    docker_push("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","trainwithshubham")
+                    docker_push("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","gibranf") 
+                    docker_push("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","gibranf")
                 }
             }
         }
