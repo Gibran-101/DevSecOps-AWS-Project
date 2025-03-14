@@ -4,6 +4,8 @@ pipeline {
     
     environment{
         SONAR_HOME = tool "Sonar"
+        AWS_REGION = "us-east-1" // Change this to your AWS region if different
+        ECR_REPOSITORY_URI = "277707132368.dkr.ecr.us-east-1.amazonaws.com" // Replace 123456789012 with your AWS account ID
     }
     
     parameters {
@@ -102,22 +104,27 @@ pipeline {
         stage("Docker: Build Images"){
             steps{
                 script{
-                        dir('backend'){
-                            docker_build("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","gibranf")
-                        }
-                    
-                        dir('frontend'){
-                            docker_build("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","gibranf")
-                        }
+                    dir('backend'){
+                        docker_build("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","gibranf")
+                    }
+                
+                    dir('frontend'){
+                        docker_build("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","gibranf")
+                    }
                 }
             }
         }
         
-        stage("Docker: Push to DockerHub"){
+        stage("ECR: Push Images"){
             steps{
                 script{
-                    docker_push("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","gibranf") 
-                    docker_push("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","gibranf")
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                                    credentialsId: 'aws-credentials', 
+                                    accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
+                                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                        ecr_push("wanderlust-backend-beta", "${params.BACKEND_DOCKER_TAG}", "${AWS_REGION}", "${ECR_REPOSITORY_URI}", "gibranf")
+                        ecr_push("wanderlust-frontend-beta", "${params.FRONTEND_DOCKER_TAG}", "${AWS_REGION}", "${ECR_REPOSITORY_URI}", "gibranf")
+                    }
                 }
             }
         }
