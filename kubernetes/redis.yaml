@@ -1,18 +1,18 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: redis-deployment
+  name: redis
   namespace: wanderlust
   labels:
     app: redis
 spec:
+  serviceName: "redis-service"
   replicas: 1
   selector:
     matchLabels:
       app: redis
   template:
     metadata:
-      name: redis
       labels:
         app: redis
     spec:
@@ -21,13 +21,30 @@ spec:
           image: redis
           ports:
             - containerPort: 6379
+              name: redis
+          command:
+            - redis-server
+            - "--appendonly"
+            - "yes" 
           volumeMounts:
-            - name: mongo-storage
-              mountPath: /var/lib/redis/dump.rdb
-      volumes:
-        - name: mongo-storage
-          persistentVolumeClaim:
-            claimName: mongo-pvc
+            - name: redis-storage
+              mountPath: /data  
+      nodeSelector:
+        workload-type: database
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "database"
+          effect: "NoSchedule"
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "gp2"  
+        resources:
+          requests:
+            storage: 5Gi
 ---
 apiVersion: v1
 kind: Service
@@ -41,3 +58,4 @@ spec:
     - port: 6379
       targetPort: 6379
       protocol: TCP
+  clusterIP: None 
