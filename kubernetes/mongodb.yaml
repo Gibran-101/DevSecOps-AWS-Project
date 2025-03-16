@@ -1,18 +1,18 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: mongo-deployment
+  name: mongo
   namespace: wanderlust
   labels:
     app: mongo
 spec:
+  serviceName: "mongo-service"
   replicas: 1
   selector:
     matchLabels:
       app: mongo
   template:
     metadata:
-      name: mongo
       labels:
         app: mongo
     spec:
@@ -21,14 +21,26 @@ spec:
           image: mongo
           ports:
             - containerPort: 27017
+              name: mongo
           volumeMounts:
             - name: mongo-storage
               mountPath: /data/db
-      volumes:
-        - name: mongo-storage
-          persistentVolumeClaim:
-            claimName: mongo-pvc
-
+      nodeSelector:
+        workload-type: database
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "database"
+          effect: "NoSchedule"
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "gp2"  
+        resources:
+          requests:
+            storage: 5Gi 
 ---
 apiVersion: v1
 kind: Service
@@ -42,3 +54,4 @@ spec:
     - port: 27017
       targetPort: 27017
       protocol: TCP
+  clusterIP: None 
