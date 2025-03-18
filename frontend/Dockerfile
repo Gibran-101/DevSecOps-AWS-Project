@@ -14,7 +14,7 @@ RUN npm install
 COPY . .
 
 # ------------------- Stage 2: Final Stage ------------------------------
-FROM node:21-slim
+FROM node:23.10.0-slim
 
 # Set the working directory to /app
 WORKDIR /app
