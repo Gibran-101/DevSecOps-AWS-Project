@@ -14,7 +14,7 @@ RUN npm i
 RUN npm run test
 
 # Stage 2
-FROM node:21-slim
+FROM node:23.10.0-slim
 
 # setup the working dir
 WORKDIR /app
