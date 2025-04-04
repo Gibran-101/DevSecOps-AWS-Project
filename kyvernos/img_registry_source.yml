@@ -1,0 +1,22 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: image-registry-whitelist
+spec:
+  validationFailureAction: enforce
+  rules:
+  - name: check-image-registry
+    match:
+      resources:
+        kinds:
+        - Deployment
+        - StatefulSet
+    validate:
+      message: "Image registry must be from the allowed list."
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+              - image: "*(registry.example.com|docker.io/library/)*"  # Update with your allowed registries
+

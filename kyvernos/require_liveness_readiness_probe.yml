@@ -1,0 +1,25 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-probes
+spec:
+  validationFailureAction: enforce
+  rules:
+  - name: check-probes
+    match:
+      resources:
+        kinds:
+        - Deployment
+        - StatefulSet
+    validate:
+      message: "Containers must define liveness and readiness probes."
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+              - livenessProbe:
+                  # Define your liveness probe configuration here
+                readinessProbe:
+                  # Define your readiness probe configuration here 
+
