@@ -1,0 +1,258 @@
+---
+- name: DevOps Tools Installation
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install common dependencies
+      apt:
+        name:
+          - unzip
+          - wget
+          - apt-transport-https
+          - gnupg
+          - lsb-release
+          - fontconfig
+        state: present
+
+    # Docker Installation
+    - name: Check if Docker is installed
+      command: which docker
+      register: docker_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+      when: docker_check.rc != 0
+
+    - name: Add user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+      when: docker_check.rc != 0
+
+    # Java Installation for Jenkins
+    - name: Check if Java is installed
+      shell: java -version 2>&1 | grep -q "version"
+      register: java_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install OpenJDK 17
+      apt:
+        name: openjdk-17-jre
+        state: present
+      when: java_check.rc != 0
+
+    # Jenkins Installation
+    - name: Check if Jenkins is installed
+      command: systemctl status jenkins
+      register: jenkins_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Add Jenkins apt key
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+        mode: '0644'
+      when: jenkins_check.rc != 0
+
+    - name: Add Jenkins repository
+      apt_repository:
+        repo: deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/
+        state: present
+        filename: jenkins
+      when: jenkins_check.rc != 0
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+        update_cache: yes
+      when: jenkins_check.rc != 0
+
+    # AWS CLI Installation
+    - name: Check if AWS CLI is installed
+      command: which aws
+      register: aws_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Download AWS CLI
+      get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+        mode: '0644'
+      when: aws_check.rc != 0
+
+    - name: Extract AWS CLI
+      unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp
+        remote_src: yes
+      when: aws_check.rc != 0
+
+    - name: Install AWS CLI
+      command: /tmp/aws/install
+      args:
+        creates: /usr/local/bin/aws
+      when: aws_check.rc != 0
+
+    # kubectl Installation
+    - name: Check if kubectl is installed
+      command: which kubectl
+      register: kubectl_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Download kubectl
+      get_url:
+        url: https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/kubectl
+        dest: /tmp/kubectl
+        mode: '0755'
+      when: kubectl_check.rc != 0
+
+    - name: Move kubectl to bin
+      copy:
+        src: /tmp/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+        remote_src: yes
+      when: kubectl_check.rc != 0
+
+    # eksctl Installation
+    - name: Check if eksctl is installed
+      command: which eksctl
+      register: eksctl_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Download and extract eksctl
+      shell: |
+        curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+      args:
+        creates: /tmp/eksctl
+      when: eksctl_check.rc != 0
+
+    - name: Move eksctl to bin
+      copy:
+        src: /tmp/eksctl
+        dest: /usr/local/bin/eksctl
+        mode: '0755'
+        remote_src: yes
+      when: eksctl_check.rc != 0
+
+    # Argo CD CLI Installation
+    - name: Check if ArgoCD CLI is installed
+      command: which argocd
+      register: argocd_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Download Argo CD CLI
+      get_url:
+        url: https://github.com/argoproj/argo-cd/releases/download/v2.4.7/argocd-linux-amd64
+        dest: /usr/local/bin/argocd
+        mode: '0755'
+      when: argocd_check.rc != 0
+
+    # Trivy Installation
+    - name: Check if Trivy is installed
+      command: which trivy
+      register: trivy_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Add Trivy apt key
+      apt_key:
+        url: https://aquasecurity.github.io/trivy-repo/deb/public.key
+        state: present
+      when: trivy_check.rc != 0
+
+    - name: Add Trivy repository
+      apt_repository:
+        repo: "deb https://aquasecurity.github.io/trivy-repo/deb {{ ansible_distribution_release }} main"
+        state: present
+        filename: trivy
+      when: trivy_check.rc != 0
+
+    - name: Install Trivy
+      apt:
+        name: trivy
+        state: present
+        update_cache: yes
+      when: trivy_check.rc != 0
+
+    # SonarQube Installation with Docker
+    - name: Check if SonarQube container is running
+      shell: docker ps -a | grep -w SonarQube-Server
+      register: sonarqube_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Run SonarQube container
+      docker_container:
+        name: SonarQube-Server
+        image: sonarqube:lts-community
+        state: started
+        restart_policy: always
+        published_ports:
+          - "9000:9000"
+      when: sonarqube_check.rc != 0
+
+    # EKS Cluster Creation
+    - name: Check if EKS cluster exists
+      shell: eksctl get cluster --name=wanderlust --region=us-east-2 2>/dev/null
+      register: eks_cluster_check
+      ignore_errors: yes
+      changed_when: false
+      become: no
+
+    - name: Create EKS cluster
+      shell: |
+        eksctl create cluster --name=wanderlust \
+        --region=us-east-2 \
+        --version=1.30 \
+        --without-nodegroup
+      when: eks_cluster_check.rc != 0
+      become: no
+
+    - name: Associate IAM OIDC provider
+      shell: |
+        eksctl utils associate-iam-oidc-provider \
+        --region us-east-2 \
+        --cluster wanderlust \
+        --approve
+      when: eks_cluster_check.rc != 0
+      become: no
+
+    - name: Check if nodegroup exists
+      shell: eksctl get nodegroup --cluster=wanderlust --region=us-east-2 2>/dev/null | grep wanderlust
+      register: nodegroup_check
+      ignore_errors: yes
+      changed_when: false
+      become: no
+
+    - name: Create EKS nodegroup
+      shell: |
+        eksctl create nodegroup --cluster=wanderlust \
+        --region=us-east-2 \
+        --name=wanderlust \
+        --node-type=t2.large \
+        --nodes=2 \
+        --nodes-min=2 \
+        --nodes-max=2 \
+        --node-volume-size=29 \
+        --ssh-access \
+        --ssh-public-key=eks-nodegroup-key
+      when: nodegroup_check.rc != 0
+      become: no
